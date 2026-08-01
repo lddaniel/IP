@@ -66,7 +66,7 @@ var encData = '';
 
 var s = document.createElement('script');
 // ↓ 改成你的 GitHub 用户名
-s.src = 'https://raw.githubusercontent.com/lddaniel/IP/main/server1/ip.js?' + Date.now();
+s.src = 'ip.js?' + Date.now();
 s.onload = function() {
     if (typeof ENCRYPTED !== 'undefined' && ENCRYPTED !== '') {
         encData = ENCRYPTED;

@@ -1,1 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Server Access</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+        background: #1a1a2e;
+        color: #eee;
+    }
+    #box {
+        text-align: center;
+        background: #16213e;
+        padding: 40px;
+        border-radius: 10px;
+    }
+    input {
+        padding: 10px;
+        font-size: 16px;
+        border: 1px solid #444;
+        border-radius: 5px;
+        background: #0f3460;
+        color: #eee;
+        margin: 10px 0;
+    }
+    button {
+        padding: 10px 30px;
+        font-size: 16px;
+        border: none;
+        border-radius: 5px;
+        background: #e94560;
+        color: #fff;
+        cursor: pointer;
+    }
+    button:hover { background: #c73e54; }
+    #msg { color: #e94560; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="box">
+    <h3>Server Access</h3>
+    <p>请输入访问密码</p>
+    <input type="password" id="pwd" autofocus placeholder="密码">
+    <br>
+    <button onclick="go()">确认</button>
+    <p id="msg"></p>
+</div>
+<script>
+var encData = '';
 
+var s = document.createElement('script');
+s.src = 'ip.js?' + Date.now();
+s.onload = function() {
+    if (typeof ENCRYPTED !== 'undefined' && ENCRYPTED !== '') {
+        encData = ENCRYPTED;
+    }
+};
+s.onerror = function() {
+    document.getElementById('msg').textContent = '无法获取服务器数据';
+};
+document.body.appendChild(s);
+
+async function aesDecrypt(encryptedBase64, password) {
+    var data = Uint8Array.from(atob(encryptedBase64), function(c) { return c.charCodeAt(0); });
+
+    // OpenSSL 格式: "Salted__"(8) + salt(8) + ciphertext
+    var salt = data.slice(8, 16);
+    var ciphertext = data.slice(16);
+
+    // PBKDF2 派生 48 字节: key(32) + iv(16)
+    var keyMaterial = await crypto.subtle.importKey(
+        'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']
+    );
+    var derivedBits = await crypto.subtle.deriveBits(
+        { name: 'PBKDF2', salt: salt, iterations: 10000, hash: 'SHA-256' },
+        keyMaterial, 384
+    );
+    var derived = new Uint8Array(derivedBits);
+    var key = derived.slice(0, 32);
+    var iv = derived.slice(32, 48);
+
+    // AES-256-CBC 解密
+    var aesKey = await crypto.subtle.importKey(
+        'raw', key, { name: 'AES-CBC' }, false, ['decrypt']
+    );
+    var decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-CBC', iv: iv }, aesKey, ciphertext
+    );
+    return new TextDecoder().decode(decrypted);
+}
+
+async function go() {
+    var key = document.getElementById('pwd').value;
+    if (!key) {
+        document.getElementById('msg').textContent = '请输入密码';
+        return;
+    }
+    if (!encData) {
+        document.getElementById('msg').textContent = '数据加载中，请稍后重试';
+        return;
+    }
+    try {
+        var url = await aesDecrypt(encData, key);
+        if (url.startsWith('http')) {
+            window.location.href = url;
+        } else {
+            document.getElementById('msg').textContent = '密码错误';
+        }
+    } catch(e) {
+        document.getElementById('msg').textContent = '密码错误';
+    }
+}
+
+document.getElementById('pwd').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') go();
+});
+</script>
+</body>
+</html>
